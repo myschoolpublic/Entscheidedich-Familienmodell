@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Entscheide dich!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;700&display=swap">
+<style>
+/* Layout: Lehrperson (ohne #r=… in der Adresse) sieht QR-Lobby, dann pro Frage zwei Farbflächen mit Zählern.
+   SuS (mit #r=CODE) sehen zwei grosse Wahlflächen; nach der Wahl füllt die Farbe das ganze Display. */
+:root {
+  --red: #D8432F;
+  --red-deep: #A92E1E;
+  --blue: #2F6DB5;
+  --blue-deep: #1F4F8A;
+  --cream: #FFF9F2;
+  --butter: #FFF1C2;
+  --gold: #8A5F00;
+  --ink: #2D2A3E;
+  --muted: #6A6580;
+  --line: #E9DFD0;
+  --ok: #2E7D4F;
+  --warn: #B4540A;
+  --display: 'Fredoka', 'Trebuchet MS', Arial, sans-serif;
+  --text: 'Nunito Sans', Arial, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+.eyebrow {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  background: var(--butter);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.btn.primary { background: var(--ink); color: var(--cream); }
+.btn.danger { background: var(--red); color: var(--cream); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn:focus-visible, .chip:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* ---------- Lehrperson ---------- */
+#teacher {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 14px max(20px, env(safe-area-inset-right, 0px)) 16px max(20px, env(safe-area-inset-left, 0px));
+  gap: 14px;
+}
+.t-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.t-brand { font-family: var(--display); font-weight: 600; font-size: 1.3rem; margin-right: auto; }
+.conn { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.conn::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--warn); }
+.conn.on::before { background: var(--ok); }
+.chip {
+  border: 2px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.chip.alert { border-color: var(--warn); color: var(--warn); }
+.t-main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+
+/* Lobby */
+.lobby { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: clamp(20px, 5vw, 70px); flex-wrap: wrap; overflow: auto; }
+.qr-box { background: #fff; border-radius: 28px; padding: 22px; box-shadow: 0 0 0 2px var(--line); }
+.qr { width: min(42vh, 80vw); height: min(42vh, 80vw); display: flex; align-items: center; justify-content: center; color: var(--muted); text-align: center; }
+.qr img, .qr canvas { width: 100% !important; height: 100% !important; display: block; }
+.lobby-info { max-width: min(34rem, 100%); min-width: 0; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.lobby-info h1 { font-family: var(--display); font-weight: 600; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.05; margin: 0; text-wrap: balance; }
+.lobby-info ol { margin: 0; padding-left: 1.3em; font-size: clamp(1.05rem, 2vw, 1.4rem); line-height: 1.5; }
+.joined { font-family: var(--display); font-weight: 600; font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-variant-numeric: tabular-nums; }
+.url { font-size: 0.85rem; color: var(--muted); word-break: break-all; user-select: all; }
+.notice { background: var(--butter); border-radius: 14px; padding: 10px 14px; font-size: 0.95rem; }
+
+/* Frage */
+.q-head { text-align: center; }
+.q-topic { margin: 2px 0 0; font-family: var(--display); font-weight: 600; font-size: clamp(2rem, 5.5vw, 4rem); line-height: 1.05; text-wrap: balance; }
+.timer { display: flex; align-items: center; gap: 14px; }
+.timer-num { font-family: var(--display); font-weight: 600; font-size: clamp(1.8rem, 4vw, 3rem); min-width: 2.2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.timer-track { flex: 1; height: 16px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.timer-fill { height: 100%; width: 0; background: var(--ink); border-radius: 999px; }
+.timer-note { font-weight: 700; color: var(--muted); min-width: 9ch; }
+.panels { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-aspect-ratio: 3/4) { .panels { grid-template-columns: none; grid-template-rows: 1fr 1fr; } }
+.panel { border-radius: 28px; color: var(--cream); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.panel.a { background: var(--red); }
+.panel.b { background: var(--blue); }
+.panel-top { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 14px 22px; text-align: center; }
+.panel .letter { font-family: var(--display); font-weight: 600; font-size: clamp(2.6rem, 9vh, 6rem); line-height: 1; }
+.panel .option { font-weight: 700; font-size: clamp(1.1rem, 2.6vw, 2.1rem); line-height: 1.25; max-width: 26ch; text-wrap: balance; }
+.panel-count { padding: 8px 22px 14px; text-align: center; }
+.panel.a .panel-count { background: var(--red-deep); }
+.panel.b .panel-count { background: var(--blue-deep); }
+.panel-count .num { font-family: var(--display); font-weight: 600; font-size: clamp(3rem, 14vh, 8rem); line-height: 1; font-variant-numeric: tabular-nums; }
+.panel-count .lbl { font-size: 0.9rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.controls .spacer { flex: 1; }
+.answered { font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.toggle { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: var(--muted); cursor: pointer; }
+
+/* Übersicht */
+.summary { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.summary h1 { font-family: var(--display); font-weight: 600; font-size: clamp(1.6rem, 3.5vw, 2.4rem); margin: 0; }
+.sum-row { background: #fff; border-radius: 18px; padding: 12px 16px; box-shadow: 0 0 0 2px var(--line); display: grid; gap: 6px; }
+.sum-row h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 1.2rem; }
+.sum-line { display: grid; grid-template-columns: minmax(0, 1fr) 3ch; gap: 10px; align-items: center; }
+.sum-bar { position: relative; border-radius: 10px; background: var(--cream); overflow: hidden; min-height: 2.1rem; display: flex; align-items: center; }
+.sum-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 10px; opacity: 0.22; }
+.sum-bar.a i { background: var(--red); }
+.sum-bar.b i { background: var(--blue); }
+.sum-bar span { position: relative; padding: 4px 10px; font-size: 0.95rem; }
+.sum-bar.a span b { color: var(--red-deep); }
+.sum-bar.b span b { color: var(--blue-deep); }
+.sum-n { font-family: var(--display); font-weight: 600; font-size: 1.4rem; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Geräte-Liste und QR-Overlay */
+.drawer {
+  position: fixed; inset: 0 0 0 auto; width: min(380px, 100%);
+  background: #fff; box-shadow: -8px 0 30px rgba(45, 42, 62, 0.18);
+  padding: 18px; display: flex; flex-direction: column; gap: 12px; z-index: 20;
+}
+.drawer h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 1.3rem; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dev-list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.dev { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--cream); }
+.dev .name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev .pick { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
+.dev .pick.A { background: var(--red); border-color: var(--red); }
+.dev .pick.B { background: var(--blue); border-color: var(--blue); }
+.dev .st { font-size: 0.85rem; font-weight: 700; color: var(--ok); white-space: nowrap; }
+.dev.away { background: #FDE9D6; }
+.dev.away .st { color: var(--warn); }
+.dev.soft .st { color: var(--gold); }
+.dev.off .st { color: var(--muted); }
+.dev.off .name { color: var(--muted); }
+.legend { font-size: 0.85rem; color: var(--muted); line-height: 1.4; margin: 0; }
+.overlay { position: fixed; inset: 0; background: rgba(45, 42, 62, 0.6); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 30; }
+.overlay .qr-box { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 100%; }
+
+/* ---------- SuS ---------- */
+#student {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  -webkit-user-select: none;
+  user-select: none;
+  overflow: hidden;
+  transition: background-color 160ms ease;
+}
+#student.a { background: var(--red); color: var(--cream); }
+#student.b { background: var(--blue); color: var(--cream); }
+#student.a .eyebrow, #student.b .eyebrow { color: rgba(255, 249, 242, 0.85); }
+.s-offline { background: var(--ink); color: var(--cream); border-radius: 12px; padding: 8px 12px; font-size: 0.9rem; text-align: center; }
+.s-center { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.s-center h1 { font-family: var(--display); font-weight: 600; font-size: clamp(2rem, 9vw, 3.2rem); line-height: 1.05; margin: 0; text-wrap: balance; }
+.s-center p { margin: 0; font-size: 1.1rem; color: var(--muted); max-width: 28ch; }
+.s-join input {
+  font: inherit; font-size: 1.3rem; font-weight: 700; text-align: center;
+  width: min(100%, 18rem); padding: 14px 16px; border-radius: 18px;
+  border: 2px solid var(--line); background: #fff; color: var(--ink);
+  -webkit-user-select: text; user-select: text;
+}
+.s-join input:focus { outline: 3px solid var(--gold); outline-offset: 2px; }
+.s-join .btn { font-size: 1.2rem; padding: 14px 34px; }
+.s-question { background: var(--butter); border-radius: 22px; padding: 10px 14px; text-align: center; }
+.s-topic { margin: 2px 0 0; font-family: var(--display); font-weight: 600; font-size: clamp(1.4rem, 6vw, 2.2rem); line-height: 1.1; text-wrap: balance; }
+.s-time { height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.s-time i { display: block; height: 100%; background: var(--ink); border-radius: 999px; width: 100%; }
+.choices { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr 1fr; gap: 12px; }
+@media (min-aspect-ratio: 4/3) { .choices { grid-template-rows: none; grid-template-columns: 1fr 1fr; } }
+.choice {
+  border: 0; border-radius: 28px; color: var(--cream);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 14px 20px 20px; cursor: pointer; min-height: 0;
+  transition: transform 120ms ease;
+}
+.choice:active { transform: scale(0.98); }
+.choice:focus-visible { outline: 4px solid var(--ink); outline-offset: 3px; }
+.choice .letter { font-family: var(--display); font-size: clamp(3.5rem, 16vw, 7rem); font-weight: 600; line-height: 1; }
+.choice .option { font-weight: 700; font-size: clamp(1.05rem, 4.6vw, 1.5rem); line-height: 1.3; text-align: center; max-width: 30ch; text-wrap: balance; }
+#pickA { background: var(--red); box-shadow: inset 0 -10px 0 var(--red-deep); }
+#pickB { background: var(--blue); box-shadow: inset 0 -10px 0 var(--blue-deep); }
+.s-picked .qbar { text-align: center; }
+.s-picked .qbar .s-topic { color: var(--cream); }
+.s-picked { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.s-picked .mid { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.s-picked .big { font-family: var(--display); font-weight: 600; font-size: min(48vw, 40vh); line-height: 0.9; }
+.s-picked .word { font-weight: 700; font-size: clamp(1.1rem, 5vw, 1.8rem); text-align: center; max-width: 28ch; line-height: 1.3; text-wrap: balance; }
+@media (prefers-reduced-motion: reduce) { .choice, #student { transition: none; } }
+</style>
+</head>
+<body>
+
+<!-- ================= Lehrperson ================= -->
+<div id="teacher" hidden>
+  <header class="t-bar">
+    <div class="t-brand">Entscheide dich!</div>
+    <span class="conn" id="tConn">Verbinde …</span>
+    <button class="chip" id="tDevBtn" type="button">0 dabei</button>
+  </header>
+
+  <main class="t-main" id="tLobby" hidden>
+    <div class="lobby">
+      <div class="qr-box"><div class="qr" id="tQR">QR-Code wird erstellt …</div></div>
+      <div class="lobby-info">
+        <h1>Scanne den Code und mach mit</h1>
+        <ol>
+          <li>Kamera öffnen und den QR-Code scannen</li>
+          <li>Vornamen eintippen</li>
+          <li>Warten, bis die erste Frage kommt</li>
+        </ol>
+        <div class="joined"><span id="tJoinedBig">0</span> dabei</div>
+        <button class="btn primary" id="tStart" type="button">Erste Frage starten</button>
+        <div class="url" id="tUrl"></div>
+        <div class="notice" id="tFileWarn" hidden>Diese Seite ist als lokale Datei geöffnet. Damit die Klasse beitreten kann, muss sie über eine Internetadresse (https://…) erreichbar sein.</div>
+      </div>
+    </div>
+  </main>
+
+  <main class="t-main" id="tQuestion" hidden>
+    <div class="q-head">
+      <p class="eyebrow" id="tCount">Frage 1 von 8</p>
+      <p class="q-topic" id="tTopic"></p>
+    </div>
+    <div class="timer">
+      <div class="timer-num" id="tSec">15</div>
+      <div class="timer-track"><div class="timer-fill" id="tFill"></div></div>
+      <div class="timer-note" id="tNote"></div>
+    </div>
+    <div class="panels">
+      <div class="panel a">
+        <div class="panel-top"><span class="letter">A</span><span class="option" id="tOptA"></span></div>
+        <div class="panel-count"><div class="num" id="tNumA">0</div><div class="lbl">Stimmen</div></div>
+      </div>
+      <div class="panel b">
+        <div class="panel-top"><span class="letter">B</span><span class="option" id="tOptB"></span></div>
+        <div class="panel-count"><div class="num" id="tNumB">0</div><div class="lbl">Stimmen</div></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="tAgain" type="button">Frage wiederholen</button>
+      <button class="btn" id="tSumBtn" type="button">Übersicht</button>
+      <button class="btn" id="tQRBtn" type="button">QR-Code</button>
+      <span class="spacer"></span>
+      <span class="answered" id="tAnswered"></span>
+      <button class="btn primary" id="tNext" type="button">Nächste Frage</button>
+    </div>
+  </main>
+
+  <main class="t-main" id="tSummary" hidden>
+    <div class="summary" id="tSumList"></div>
+    <div class="controls">
+      <button class="btn" id="tBack" type="button">Zurück zur Frage</button>
+      <span class="spacer"></span>
+      <button class="btn danger" id="tReset" type="button">Neue Runde starten</button>
+    </div>
+  </main>
+
+  <aside class="drawer" id="tDrawer" hidden>
+    <div class="drawer-head"><h2>Geräte</h2><button class="btn" id="tDrawerClose" type="button">Schliessen</button></div>
+    <p class="legend">Der Punkt zeigt die Wahl bei der aktuellen Frage. «Andere App offen» heisst: Die Seite ist auf dem Gerät gerade nicht sichtbar.</p>
+    <ul class="dev-list" id="tDevList"></ul>
+  </aside>
+
+  <div class="overlay" id="tQROverlay" hidden>
+    <div class="qr-box">
+      <div class="qr" id="tQR2"></div>
+      <button class="btn primary" id="tQRClose" type="button">Schliessen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SuS ================= -->
+<div id="student" hidden>
+  <div class="s-offline" id="sOffline" hidden>Verbindung wird hergestellt …</div>
+
+  <form class="s-center s-join" id="sJoin" hidden>
+    <p class="eyebrow">Entscheide dich!</p>
+    <h1>Wie heisst du?</h1>
+    <input id="sName" type="text" maxlength="20" autocomplete="given-name" autocapitalize="words" placeholder="Vorname" aria-label="Vorname">
+    <button class="btn primary" type="submit">Mitmachen</button>
+  </form>
+
+  <div class="s-center" id="sWait" hidden>
+    <p class="eyebrow" id="sWaitName"></p>
+    <h1 id="sWaitTitle">Du bist dabei</h1>
+    <p id="sWaitText">Gleich kommt die erste Frage. Lass diese Seite offen.</p>
+  </div>
+
+  <div id="sChoose" hidden style="flex:1;min-height:0;display:flex;flex-direction:column;gap:12px">
+    <div class="s-question">
+      <p class="eyebrow" id="sCount"></p>
+      <p class="s-topic" id="sTopic"></p>
+    </div>
+    <div class="s-time"><i id="sFill"></i></div>
+    <div class="choices">
+      <button class="choice" id="pickA" type="button"><span class="letter">A</span><span class="option" id="sOptA"></span></button>
+      <button class="choice" id="pickB" type="button"><span class="letter">B</span><span class="option" id="sOptB"></span></button>
+    </div>
+  </div>
+
+  <div class="s-picked" id="sPicked" hidden role="status" aria-live="polite">
+    <div class="qbar">
+      <p class="eyebrow" id="sPCount"></p>
+      <p class="s-topic" id="sPTopic"></p>
+    </div>
+    <div class="mid">
+      <div class="big" id="sBig">A</div>
+      <div class="word" id="sWord"></div>
+    </div>
+  </div>
+</div>
+
+<div class="s-center" id="fatal" hidden style="height:100%;padding:20px">
+  <h1>Keine Verbindung</h1>
+  <p>Die Seite konnte nicht vollständig geladen werden. Bitte Internet prüfen und neu laden.</p>
+</div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- Hier lassen sich die Fragen und die Zeit anpassen ----------
+  var QUESTIONS = [
+    { topic: 'Mein Berufsleben', a: 'Viel verdienen – aber wenig Zeit für Familie und Freizeit', b: 'Weniger verdienen – aber viel Zeit für Familie und Freizeit' },
+    { topic: 'Ein Baby kommt', a: 'Ich bleibe ein Jahr zu Hause beim Baby.', b: 'Ich arbeite weiter, mein Partner oder meine Partnerin bleibt zu Hause.' },
+    { topic: 'Zusammenleben', a: 'Ich möchte später heiraten.', b: 'Ich möchte ohne Trauschein zusammenleben.' },
+    { topic: 'Berufswahl', a: 'Ich wähle einen Beruf, den viele aus meinem Geschlecht wählen.', b: 'Ich wähle einen Beruf, den eher das andere Geschlecht wählt.' },
+    { topic: 'Kinderbetreuung', a: 'Meine Kinder gehen an einigen Tagen in die Kita.', b: 'Meine Kinder werden nur von der Familie betreut.' },
+    { topic: 'Geld in der Beziehung', a: 'Ein gemeinsames Konto – alles Geld gehört beiden.', b: 'Jede Person hat ihr eigenes Geld und Konto.' },
+    { topic: 'Haushalt', a: 'Jede Person hat feste Aufgaben, z. B. eine kocht, die andere putzt.', b: 'Alle machen alles – die Aufgaben wechseln jede Woche.' },
+    { topic: 'Familienname', a: 'Wir haben einen gemeinsamen Familiennamen.', b: 'Jede Person behält ihren eigenen Namen.' }
+  ];
+  var SECONDS = 20;
+  // -----------------------------------------------------------------------
+
+  // Der erste Dienst läuft über den normalen HTTPS-Port 443 und kommt so auch durch strenge Schulnetze.
+  var BROKERS = [
+    { url: 'wss://public.cloud.shiftr.io', username: 'public', password: 'public' },
+    { url: 'wss://mqtt.eclipseprojects.io/mqtt' },
+    { url: 'wss://broker.hivemq.com:8884/mqtt' },
+    { url: 'wss://broker.emqx.io:8084/mqtt' }
+  ];
+  function brokerOptions(i, extra) {
+    var b = BROKERS[i];
+    if (b.username) { extra.username = b.username; extra.password = b.password; }
+    return extra;
+  }
+  var PREFIX = 'entscheide-dich-v1/';
+  var GRACE = 1500;       // ms Toleranz für Antworten kurz vor Schluss
+  var SILENT = 12000;     // ms ohne Lebenszeichen = keine Verbindung
+
+  var $ = function (id) { return document.getElementById(id); };
+  function load(key, fallback) {
+    try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
+  function rnd(n, chars) {
+    var out = '', buf = new Uint32Array(n);
+    crypto.getRandomValues(buf);
+    for (var i = 0; i < n; i++) out += chars[buf[i] % chars.length];
+    return out;
+  }
+  function keepAwake() {
+    try { if (navigator.wakeLock && !document.hidden) navigator.wakeLock.request('screen').catch(function () {}); } catch (e) {}
+  }
+
+  var params = {};
+  location.hash.replace(/^#/, '').split('&').forEach(function (p) {
+    var kv = p.split('=');
+    if (kv[0]) params[kv[0]] = decodeURIComponent(kv[1] || '');
+  });
+  window.addEventListener('hashchange', function () { location.reload(); });
+
+  if (typeof mqtt === 'undefined') { $('fatal').hidden = false; return; }
+
+  if (/^[A-Z0-9]{4,8}$/.test(params.r || '')) {
+    var b = parseInt(params.b, 10);
+    startStudent(params.r, b >= 0 && b < BROKERS.length ? b : 0);
+  } else {
+    startTeacher();
+  }
+
+  // =====================================================================
+  // Lehrperson
+  // =====================================================================
+  function startTeacher() {
+    $('teacher').hidden = false;
+    var T = load('ed-teacher', null);
+    if (!T || !T.room) T = fresh();
+    var students = {};
+    var client = null, connected = false;
+    var showSummary = false, drawerOpen = false, resetArmed = false;
+    var lastBeat = 0, qrFor = '';
+
+    function fresh() {
+      return { room: rnd(5, 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'), broker: null, phase: 'lobby', q: 0, round: 0, ends: 0, results: {}, live: true };
+    }
+    function persist() { save('ed-teacher', T); }
+    function base() { return PREFIX + T.room + '/'; }
+    function joinUrl() { return location.href.split('#')[0] + '#r=' + T.room + '&b=' + T.broker; }
+
+    function publishState() {
+      if (!client || !connected) return;
+      var q = QUESTIONS[T.q];
+      lastBeat = Date.now();
+      client.publish(base() + 'state', JSON.stringify({
+        v: 1, phase: T.phase, q: T.q, n: QUESTIONS.length, round: T.round,
+        topic: q.topic, a: q.a, b: q.b, ends: T.ends, dur: SECONDS, now: Date.now()
+      }), { retain: true, qos: 0 });
+    }
+
+    function connect(i) {
+      var fixed = T.broker != null;
+      var idx = fixed ? T.broker : i;
+      var settled = fixed;
+      var c = mqtt.connect(BROKERS[idx].url, brokerOptions(idx, { clientId: 'ed-t-' + rnd(10, 'abcdefghijklmnopqrstuvwxyz0123456789'), clean: true, keepalive: 20, reconnectPeriod: 2000, connectTimeout: 6000 }));
+      var timer = fixed ? null : setTimeout(fail, 6000);
+      function fail() {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try { c.end(true); } catch (e) {}
+        setTimeout(function () { connect((i + 1) % BROKERS.length); }, i + 1 < BROKERS.length ? 0 : 3000);
+      }
+      c.on('error', fail);
+      c.on('close', function () {
+        if (!settled) { fail(); return; }
+        if (client === c) { connected = false; render(); }
+      });
+      c.on('connect', function () {
+        if (!settled) { settled = true; clearTimeout(timer); T.broker = idx; persist(); }
+        if (client && client !== c) return;
+        client = c; connected = true;
+        c.subscribe(base() + 's/+', { qos: 1 });
+        publishState();
+        render();
+      });
+      c.on('message', onMessage);
+    }
+
+    function onMessage(topic, payload) {
+      var m;
+      try { m = JSON.parse(payload.toString()); } catch (e) { return; }
+      if (!m || typeof m.id !== 'string' || !/^[a-z0-9]{6,16}$/.test(m.id)) return;
+      if (topic !== base() + 's/' + m.id) return;
+      var s = students[m.id];
+      if (m.gone) { if (s) s.gone = true; render(); return; }
+      if (!s) {
+        if (Object.keys(students).length >= 300) return;
+        s = students[m.id] = {};
+      }
+      s.name = String(m.name || '').slice(0, 20) || 'Ohne Namen';
+      s.away = !!m.away;
+      s.focus = m.f !== false;
+      s.seen = Date.now();
+      s.gone = false;
+      if ((m.c === 'A' || m.c === 'B') && m.round === T.round && T.phase !== 'lobby' && Date.now() <= T.ends + GRACE) {
+        var r = T.results[T.q] || (T.results[T.q] = {});
+        if (r[m.id] !== m.c) { r[m.id] = m.c; persist(); }
+      }
+      render();
+    }
+
+    function startQuestion(q) {
+      T.q = q;
+      T.round += 1;
+      T.results[q] = {};
+      T.phase = 'open';
+      T.ends = Date.now() + SECONDS * 1000;
+      showSummary = false;
+      persist(); publishState(); render(); keepAwake();
+    }
+
+    function counts(q) {
+      var r = T.results[q] || {}, a = 0, b = 0;
+      Object.keys(r).forEach(function (id) { if (r[id] === 'A') a++; else if (r[id] === 'B') b++; });
+      return { a: a, b: b };
+    }
+
+    function statusOf(s) {
+      if (s.gone) return 'off';
+      if (Date.now() - s.seen > SILENT) return 'silent';
+      if (s.away) return 'away';
+      if (!s.focus) return 'soft';
+      return 'ok';
+    }
+
+    function makeQR(el, url) {
+      el.textContent = '';
+      if (!/^https?:/.test(url)) { el.textContent = 'Der QR-Code erscheint, sobald die Seite über eine Internetadresse geöffnet ist.'; return; }
+      try { new QRCode(el, { text: url, width: 512, height: 512, correctLevel: QRCode.CorrectLevel.M }); }
+      catch (e) { el.textContent = url; }
+    }
+
+    function render() {
+      var now = Date.now();
+      var ids = Object.keys(students);
+      var present = 0, distracted = 0;
+      ids.forEach(function (id) {
+        var st = statusOf(students[id]);
+        if (st !== 'off') present++;
+        if (st === 'away' || st === 'silent') distracted++;
+      });
+
+      $('tConn').textContent = connected ? 'Verbunden · Raum ' + T.room : 'Verbinde …';
+      $('tConn').className = 'conn' + (connected ? ' on' : '');
+      $('tDevBtn').textContent = present + ' dabei' + (distracted ? ' · ' + distracted + ' nicht auf der Seite' : '');
+      $('tDevBtn').className = 'chip' + (distracted ? ' alert' : '');
+
+      var view = (showSummary || T.phase === 'end') ? 'summary' : (T.phase === 'lobby' ? 'lobby' : 'question');
+      $('tLobby').hidden = view !== 'lobby';
+      $('tQuestion').hidden = view !== 'question';
+      $('tSummary').hidden = view !== 'summary';
+
+      if (T.broker != null) {
+        var url = joinUrl();
+        if (qrFor !== url) {
+          qrFor = url;
+          makeQR($('tQR'), url);
+          makeQR($('tQR2'), url);
+          $('tUrl').textContent = /^https?:/.test(url) ? url : '';
+        }
+      }
+
+      if (view === 'lobby') {
+        $('tJoinedBig').textContent = present;
+        $('tStart').disabled = !connected;
+        $('tFileWarn').hidden = /^https?:$/.test(location.protocol);
+      }
+
+      if (view === 'question') {
+        var q = QUESTIONS[T.q];
+        var open = T.phase === 'open';
+        var left = Math.max(0, T.ends - now);
+        var c = counts(T.q);
+        var reveal = !open;
+        $('tCount').textContent = 'Frage ' + (T.q + 1) + ' von ' + QUESTIONS.length;
+        $('tTopic').textContent = q.topic;
+        $('tOptA').textContent = q.a;
+        $('tOptB').textContent = q.b;
+        $('tSec').textContent = open ? Math.ceil(left / 1000) : 0;
+        $('tFill').style.width = (open ? left / (SECONDS * 10) : 0) + '%';
+        $('tNote').textContent = open ? 'Sekunden' : (T.early ? 'Alle haben gewählt' : 'Zeit ist um');
+        $('tNumA').textContent = reveal ? c.a : '?';
+        $('tNumB').textContent = reveal ? c.b : '?';
+        $('tAnswered').textContent = (c.a + c.b) + ' von ' + Math.max(present, c.a + c.b) + ' haben gewählt';
+        $('tAgain').disabled = open || !connected;
+        $('tNext').disabled = open || !connected;
+        $('tNext').textContent = open ? 'Läuft …' : (T.q === QUESTIONS.length - 1 ? 'Abschliessen' : 'Nächste Frage');
+      }
+
+      if (view === 'summary') renderSummary();
+      $('tBack').hidden = T.phase === 'end' || T.phase === 'lobby';
+      $('tReset').textContent = resetArmed ? 'Wirklich alles zurücksetzen?' : 'Neue Runde starten';
+
+      $('tDrawer').hidden = !drawerOpen;
+      if (drawerOpen) renderDevices(ids);
+    }
+
+    function renderSummary() {
+      var list = $('tSumList');
+      list.textContent = '';
+      var h = document.createElement('h1');
+      h.textContent = 'Übersicht';
+      list.appendChild(h);
+      QUESTIONS.forEach(function (q, i) {
+        var c = counts(i), total = c.a + c.b;
+        var row = document.createElement('section');
+        row.className = 'sum-row';
+        var title = document.createElement('h2');
+        title.textContent = (i + 1) + '. ' + q.topic;
+        row.appendChild(title);
+        [['a', 'A', q.a, c.a], ['b', 'B', q.b, c.b]].forEach(function (o) {
+          var line = document.createElement('div'); line.className = 'sum-line';
+          var bar = document.createElement('div'); bar.className = 'sum-bar ' + o[0];
+          var fill = document.createElement('i'); fill.style.width = (total ? o[3] / total * 100 : 0) + '%';
+          var txt = document.createElement('span');
+          var letter = document.createElement('b'); letter.textContent = o[1] + '  ';
+          txt.appendChild(letter); txt.appendChild(document.createTextNode(o[2]));
+          bar.appendChild(fill); bar.appendChild(txt);
+          var n = document.createElement('div'); n.className = 'sum-n';
+          n.textContent = T.results[i] ? o[3] : '–';
+          line.appendChild(bar); line.appendChild(n);
+          row.appendChild(line);
+        });
+        list.appendChild(row);
+      });
+    }
+
+    var devSig = '';
+    function renderDevices(ids) {
+      var r = T.results[T.q] || {};
+      var rows = ids.map(function (id) {
+        var s = students[id];
+        return { name: s.name, st: statusOf(s), pick: T.phase === 'lobby' ? '' : (r[id] || '') };
+      }).sort(function (x, y) { return x.name.localeCompare(y.name, 'de'); });
+      var sig = JSON.stringify(rows);
+      if (sig === devSig) return;
+      devSig = sig;
+      var labels = { ok: 'aktiv', away: 'andere App offen', silent: 'keine Verbindung', soft: 'Fenster nicht aktiv', off: 'getrennt' };
+      var cls = { ok: '', away: ' away', silent: ' away', soft: ' soft', off: ' off' };
+      var list = $('tDevList');
+      list.textContent = '';
+      if (!rows.length) {
+        var empty = document.createElement('li');
+        empty.className = 'legend';
+        empty.textContent = 'Noch niemand beigetreten.';
+        list.appendChild(empty);
+      }
+      rows.forEach(function (row) {
+        var li = document.createElement('li'); li.className = 'dev' + cls[row.st];
+        var dot = document.createElement('span'); dot.className = 'pick ' + row.pick;
+        var name = document.createElement('span'); name.className = 'name'; name.textContent = row.name;
+        var st = document.createElement('span'); st.className = 'st'; st.textContent = labels[row.st];
+        li.appendChild(dot); li.appendChild(name); li.appendChild(st);
+        list.appendChild(li);
+      });
+    }
+
+    $('tStart').addEventListener('click', function () { startQuestion(0); });
+    $('tNext').addEventListener('click', function () {
+      if (T.phase === 'open') return;
+      if (T.q < QUESTIONS.length - 1) { startQuestion(T.q + 1); return; }
+      T.phase = 'end'; persist(); publishState(); render();
+    });
+    $('tAgain').addEventListener('click', function () { if (T.phase !== 'open') startQuestion(T.q); });
+    $('tSumBtn').addEventListener('click', function () { showSummary = true; render(); });
+    $('tBack').addEventListener('click', function () { showSummary = false; resetArmed = false; render(); });
+    $('tDevBtn').addEventListener('click', function () { drawerOpen = !drawerOpen; devSig = ''; render(); });
+    $('tDrawerClose').addEventListener('click', function () { drawerOpen = false; render(); });
+    $('tQRBtn').addEventListener('click', function () { $('tQROverlay').hidden = false; });
+    $('tQRClose').addEventListener('click', function () { $('tQROverlay').hidden = true; });
+    $('tQROverlay').addEventListener('click', function (e) { if (e.target === $('tQROverlay')) $('tQROverlay').hidden = true; });
+    $('tReset').addEventListener('click', function () {
+      if (!resetArmed) { resetArmed = true; render(); setTimeout(function () { resetArmed = false; render(); }, 4000); return; }
+      resetArmed = false;
+      var old = client;
+      if (old && connected) { try { old.publish(base() + 'state', '', { retain: true }); } catch (e) {} }
+      client = null; connected = false;
+      setTimeout(function () { try { if (old) old.end(true); } catch (e) {} }, 500);
+      T = fresh(); students = {}; showSummary = false; qrFor = '';
+      $('tQR').textContent = 'QR-Code wird erstellt …';
+      persist(); render(); connect(0);
+    });
+
+    setInterval(function () {
+      var now = Date.now();
+      var allIn = false;
+      if (T.phase === 'open') {
+        // Sobald alle verbundenen Geräte gewählt haben, endet die Frage vorzeitig und die Zahlen erscheinen.
+        var c = counts(T.q), present = 0;
+        Object.keys(students).forEach(function (id) { if (statusOf(students[id]) !== 'off') present++; });
+        allIn = present > 0 && c.a + c.b >= present;
+      }
+      if (T.phase === 'open' && (now >= T.ends || allIn)) {
+        T.early = now < T.ends;
+        if (T.early) T.ends = now;
+        T.phase = 'closed'; persist(); publishState();
+      }
+      else if (now - lastBeat > (T.phase === 'open' ? 1000 : 5000)) publishState();
+      render();
+    }, 250);
+    document.addEventListener('visibilitychange', keepAwake);
+
+    render();
+    connect(0);
+  }
+
+  // =====================================================================
+  // SuS
+  // =====================================================================
+  function startStudent(room, brokerIdx) {
+    var el = $('student');
+    el.hidden = false;
+    var me = load('ed-student', null);
+    if (!me || !me.id) me = { id: rnd(10, 'abcdefghijklmnopqrstuvwxyz0123456789'), name: '' };
+    var picksKey = 'ed-picks-' + room;
+    var picks = load(picksKey, {});
+    var state = null, offset = -Infinity, client = null, connected = false;
+    var base = PREFIX + room + '/';
+    var myTopic = base + 's/' + me.id;
+
+    function remaining() {
+      if (!state) return 0;
+      return state.ends - (Date.now() + (isFinite(offset) ? offset : 0));
+    }
+    function myPick() { return state ? (picks[state.round] || null) : null; }
+
+    function publishMe() {
+      if (!client || !connected || !me.name) return;
+      var f = true;
+      try { f = document.hasFocus(); } catch (e) {}
+      client.publish(myTopic, JSON.stringify({
+        id: me.id, name: me.name, round: state ? state.round : 0, c: myPick(),
+        away: document.hidden, f: f, t: Date.now()
+      }), { retain: true, qos: 1 });
+    }
+
+    function connect() {
+      client = mqtt.connect(BROKERS[brokerIdx].url, brokerOptions(brokerIdx, {
+        clientId: 'ed-s-' + me.id + '-' + rnd(4, 'abcdefghijklmnopqrstuvwxyz'), clean: true, keepalive: 15,
+        reconnectPeriod: 2000, connectTimeout: 8000,
+        will: { topic: myTopic, payload: JSON.stringify({ id: me.id, gone: true }), qos: 1, retain: true }
+      }));
+      client.on('connect', function () {
+        connected = true;
+        client.subscribe(base + 'state', { qos: 1 });
+        publishMe(); render();
+      });
+      client.on('close', function () { connected = false; render(); });
+      client.on('error', function () {});
+      client.on('message', function (topic, payload) {
+        if (topic !== base + 'state') return;
+        var text = payload.toString();
+        if (!text) { state = null; render(); return; }
+        var m;
+        try { m = JSON.parse(text); } catch (e) { return; }
+        if (!m || typeof m.round !== 'number' || typeof m.ends !== 'number') return;
+        if (typeof m.now === 'number') offset = Math.max(offset, m.now - Date.now());
+        var changed = !state || state.round !== m.round || state.phase !== m.phase;
+        state = m;
+        if (changed) publishMe();
+        render();
+      });
+    }
+
+    function pick(choice) {
+      if (!state || state.phase !== 'open' || remaining() <= 0 || myPick()) return;
+      picks[state.round] = choice;
+      save(picksKey, picks);
+      publishMe(); render(); keepAwake();
+      try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {}
+    }
+
+    var lastView = '';
+    function render() {
+      var view, p = myPick();
+      if (!me.name) view = 'join';
+      else if (!state || state.phase === 'lobby') view = 'wait';
+      else if (state.phase === 'end') view = 'end';
+      else if (p) view = 'picked';
+      else if (state.phase === 'open' && remaining() > 0) view = 'choose';
+      else view = 'late';
+
+      $('sOffline').hidden = connected || view === 'join';
+      $('sJoin').hidden = view !== 'join';
+      $('sWait').hidden = !(view === 'wait' || view === 'end' || view === 'late');
+      $('sChoose').hidden = view !== 'choose';
+      $('sPicked').hidden = view !== 'picked';
+      el.className = view === 'picked' ? (p === 'A' ? 'a' : 'b') : '';
+
+      var count = state ? 'Frage ' + (state.q + 1) + ' von ' + state.n : '';
+      if (view === 'wait') {
+        $('sWaitName').textContent = me.name;
+        $('sWaitTitle').textContent = 'Du bist dabei';
+        $('sWaitText').textContent = 'Gleich kommt die erste Frage. Lass diese Seite offen.';
+      } else if (view === 'end') {
+        $('sWaitName').textContent = me.name;
+        $('sWaitTitle').textContent = 'Geschafft';
+        $('sWaitText').textContent = 'Das waren alle Fragen. Danke fürs Mitmachen.';
+      } else if (view === 'late') {
+        $('sWaitName').textContent = count + ' · ' + String(state.topic || '');
+        $('sWaitTitle').textContent = 'Zeit abgelaufen';
+        $('sWaitText').textContent = 'Du hast bei dieser Frage nicht gewählt. Gleich geht es weiter.';
+      } else if (view === 'choose') {
+        $('sCount').textContent = count;
+        $('sTopic').textContent = String(state.topic || '');
+        $('sOptA').textContent = String(state.a || '');
+        $('sOptB').textContent = String(state.b || '');
+        $('pickA').setAttribute('aria-label', 'A wählen: ' + String(state.a || ''));
+        $('pickB').setAttribute('aria-label', 'B wählen: ' + String(state.b || ''));
+        var total = (state.dur || SECONDS) * 1000;
+        $('sFill').style.width = Math.max(0, Math.min(100, remaining() / total * 100)) + '%';
+      } else if (view === 'picked') {
+        $('sPCount').textContent = count;
+        $('sPTopic').textContent = String(state.topic || '');
+        $('sBig').textContent = p;
+        $('sWord').textContent = String(p === 'A' ? state.a : state.b || '');
+      }
+      if (view !== lastView) {
+        lastView = view;
+        if (view === 'join') { try { $('sName').focus(); } catch (e) {} }
+      }
+    }
+
+    $('sJoin').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = $('sName').value.replace(/\s+/g, ' ').trim().slice(0, 20);
+      if (!name) { $('sName').focus(); return; }
+      me.name = name;
+      save('ed-student', me);
+      publishMe(); render(); keepAwake();
+    });
+    $('pickA').addEventListener('click', function () { pick('A'); });
+    $('pickB').addEventListener('click', function () { pick('B'); });
+
+    // Die Lehrperson sieht, wenn die Seite nicht mehr sichtbar oder nicht mehr aktiv ist.
+    document.addEventListener('visibilitychange', function () { publishMe(); keepAwake(); });
+    window.addEventListener('blur', publishMe);
+    window.addEventListener('focus', publishMe);
+    window.addEventListener('pagehide', publishMe);
+
+    setInterval(render, 100);
+    setInterval(publishMe, 4000);
+
+    $('sName').value = me.name || '';
+    render();
+    connect();
+  }
+})();
+</script>
+</body>
+</html>
