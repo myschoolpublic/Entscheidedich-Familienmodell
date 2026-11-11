@@ -151,9 +151,12 @@ button { font: inherit; color: inherit; }
 .drawer h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 1.3rem; }
 .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dev-list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.dev-list li { display: flex; }
-.dev { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--cream); border: 0; width: 100%; text-align: left; cursor: pointer; }
-.dev:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.dev { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--cream); }
+.dev .info { flex: 1 1 calc(100% - 30px); min-width: 0; display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 10px; }
+.mini { border: 2px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 10px; font-size: 0.85rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex: none; }
+.mini:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.mini:active { background: var(--butter); }
+.version { font-size: 0.75rem; color: var(--muted); }
 .dev.pinged { background: var(--butter); box-shadow: inset 0 0 0 2px var(--gold); }
 .dev.pinged .st { color: var(--gold); }
 .s-ping { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: #FFD400; color: #1B1B1B; animation: pingflash 0.5s steps(1) infinite; }
@@ -161,6 +164,7 @@ button { font: inherit; color: inherit; }
 .s-ping p { margin: 0; font-weight: 700; font-size: 1.3rem; }
 @keyframes pingflash { 0% { background: #FFD400; color: #1B1B1B; } 50% { background: #1B1B1B; color: #FFD400; } }
 @media (prefers-reduced-motion: reduce) { .s-ping { animation: none; } }
+.dev .st { flex: none; }
 .dev .name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dev .pick { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
 .dev .pick.A { background: var(--red); border-color: var(--red); }
@@ -235,6 +239,7 @@ button { font: inherit; color: inherit; }
 <div id="teacher" hidden>
   <header class="t-bar">
     <div class="t-brand">Entscheide dich!</div>
+    <span class="version">Version 4</span>
     <span class="conn" id="tConn">Verbinde …</span>
     <button class="chip" id="tDevBtn" type="button">0 dabei</button>
   </header>
@@ -298,7 +303,7 @@ button { font: inherit; color: inherit; }
 
   <aside class="drawer" id="tDrawer" hidden>
     <div class="drawer-head"><h2>Geräte</h2><button class="btn" id="tDrawerClose" type="button">Schliessen</button></div>
-    <p class="legend">Tippe auf einen Namen: Das Gerät blinkt dann ein paar Sekunden gelb-schwarz und zeigt den Namen gross an. Der Punkt zeigt die Wahl bei der aktuellen Frage. «Andere App offen» heisst: Die Seite ist auf dem Gerät gerade nicht sichtbar.</p>
+    <p class="legend">«Blinken»: Das Gerät blinkt ein paar Sekunden gelb-schwarz und zeigt den Namen gross an. «Name neu»: Das Kind muss den Namen neu eintippen. Der Punkt zeigt die Wahl bei der aktuellen Frage. «Andere App offen» heisst: Die Seite ist auf dem Gerät gerade nicht sichtbar.</p>
     <ul class="dev-list" id="tDevList"></ul>
   </aside>
 
@@ -317,14 +322,17 @@ button { font: inherit; color: inherit; }
   <form class="s-center s-join" id="sJoin" hidden>
     <p class="eyebrow">Entscheide dich!</p>
     <h1>Wie heisst du?</h1>
+    <p id="sJoinHint" hidden>Bitte tippe deinen richtigen Vornamen ein.</p>
     <input id="sName" type="text" maxlength="20" autocomplete="given-name" autocapitalize="words" placeholder="Vorname" aria-label="Vorname">
     <button class="btn primary" type="submit">Mitmachen</button>
+    <span class="version">Version 4</span>
   </form>
 
   <div class="s-center" id="sWait" hidden>
     <p class="eyebrow" id="sWaitName"></p>
     <h1 id="sWaitTitle">Du bist dabei</h1>
     <p id="sWaitText">Gleich kommt die erste Frage. Lass diese Seite offen.</p>
+    <button class="chip" id="sRename" type="button">Namen ändern</button>
   </div>
 
   <div id="sChoose" hidden style="flex:1;min-height:0;display:flex;flex-direction:column;gap:12px">
@@ -659,20 +667,25 @@ button { font: inherit; color: inherit; }
       }
       rows.forEach(function (row) {
         var li = document.createElement('li');
-        var btn = document.createElement('button'); btn.type = 'button';
-        btn.className = 'dev' + cls[row.st] + (row.ping ? ' pinged' : '');
-        btn.setAttribute('aria-label', row.name + ': Gerät blinken lassen');
+        li.className = 'dev' + cls[row.st] + (row.ping ? ' pinged' : '');
         var dot = document.createElement('span'); dot.className = 'pick ' + row.pick;
+        var info = document.createElement('span'); info.className = 'info';
         var name = document.createElement('span'); name.className = 'name'; name.textContent = row.name;
-        var st = document.createElement('span'); st.className = 'st'; st.textContent = row.ping ? 'blinkt …' : labels[row.st];
-        btn.appendChild(dot); btn.appendChild(name); btn.appendChild(st);
-        btn.addEventListener('click', function () {
-          if (!client || !connected) return;
-          client.publish(base() + 'ping/' + row.id, JSON.stringify({ t: Date.now() }), { qos: 1 });
-          pinged[row.id] = Date.now();
-          render();
+        var st = document.createElement('span'); st.className = 'st'; st.textContent = row.ping ? 'Signal gesendet …' : labels[row.st];
+        info.appendChild(name); info.appendChild(st);
+        li.appendChild(dot); li.appendChild(info);
+        [['ping', 'Blinken'], ['rename', 'Name neu']].forEach(function (act) {
+          var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'mini';
+          btn.textContent = act[1];
+          btn.setAttribute('aria-label', act[1] + ': ' + row.name);
+          btn.addEventListener('click', function () {
+            if (!client || !connected) return;
+            client.publish(base() + 'ping/' + row.id, JSON.stringify({ t: Date.now(), kind: act[0] }), { qos: 1 });
+            pinged[row.id] = Date.now();
+            render();
+          });
+          li.appendChild(btn);
         });
-        li.appendChild(btn);
         list.appendChild(li);
       });
     }
@@ -739,7 +752,7 @@ button { font: inherit; color: inherit; }
     var state = null, offset = -Infinity, client = null, connected = false;
     var base = PREFIX + room + '/';
     var myTopic = base + 's/' + me.id;
-    var pingTimer = null;
+    var pingTimer = null, editing = false, forced = false;
 
     function remaining() {
       if (!state) return 0;
@@ -773,6 +786,14 @@ button { font: inherit; color: inherit; }
       client.on('error', function () {});
       client.on('message', function (topic, payload) {
         if (topic === base + 'ping/' + me.id) {
+          var cmd = {};
+          try { cmd = JSON.parse(payload.toString()) || {}; } catch (e) {}
+          if (cmd.kind === 'rename') {
+            editing = true; forced = true;
+            $('sName').value = '';
+            render();
+            return;
+          }
           $('sPingName').textContent = me.name || '?';
           $('sPing').hidden = false;
           clearTimeout(pingTimer);
@@ -805,7 +826,7 @@ button { font: inherit; color: inherit; }
     var lastView = '';
     function render() {
       var view, p = myPick();
-      if (!me.name) view = 'join';
+      if (!me.name || editing) view = 'join';
       else if (!state || state.phase === 'lobby') view = 'wait';
       else if (state.phase === 'end') view = 'end';
       else if (p) view = 'picked';
@@ -814,6 +835,7 @@ button { font: inherit; color: inherit; }
 
       $('sOffline').hidden = connected || view === 'join';
       $('sJoin').hidden = view !== 'join';
+      $('sJoinHint').hidden = !forced;
       $('sWait').hidden = !(view === 'wait' || view === 'end' || view === 'late');
       $('sChoose').hidden = view !== 'choose';
       $('sPicked').hidden = view !== 'picked';
@@ -858,9 +880,11 @@ button { font: inherit; color: inherit; }
       var name = $('sName').value.replace(/\s+/g, ' ').trim().slice(0, 20);
       if (!name) { $('sName').focus(); return; }
       me.name = name;
+      editing = false; forced = false;
       save('ed-student', me);
       publishMe(); render(); keepAwake();
     });
+    $('sRename').addEventListener('click', function () { editing = true; $('sName').value = me.name || ''; render(); });
     $('pickA').addEventListener('click', function () { pick('A'); });
     $('pickB').addEventListener('click', function () { pick('B'); });
 
